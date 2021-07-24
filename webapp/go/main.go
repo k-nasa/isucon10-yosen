@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
@@ -14,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-redis/redis/v8"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo"
@@ -26,7 +24,6 @@ const Limit = 20
 const NazotteLimit = 50
 
 var db *sqlx.DB
-var rdb *redis.Client
 var mySQLConnectionData *MySQLConnectionEnv
 var chairSearchCondition ChairSearchCondition
 var estateSearchCondition EstateSearchCondition
@@ -282,12 +279,6 @@ func main() {
 	db.SetMaxOpenConns(10)
 	defer db.Close()
 
-	rdb = redis.NewClient(&redis.Options{
-		Addr:     "13.231.179.8:6379",
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
-
 
 	// Start server
 	serverPort := fmt.Sprintf(":%v", getEnv("SERVER_PORT", "1323"))
@@ -295,10 +286,6 @@ func main() {
 }
 
 func initialize(c echo.Context) error {
-
-	ctx := context.Background()
-	rdb.Do(ctx, "flushdb")
-
 	sqlDir := filepath.Join("..", "mysql", "db")
 	paths := []string{
 		filepath.Join(sqlDir, "0_Schema.sql"),
@@ -1003,50 +990,3 @@ func (cs Coordinates) coordinatesToText() string {
 	return fmt.Sprintf("'POLYGON((%s))'", strings.Join(points, ","))
 }
 
-func GetChairFromRedis(id int) (bool, Chair) {
-	key := fmt.Sprintf("chair-%d", id)
-
-	ctx := context.Background()
-	chairJson, err := rdb.Get(ctx, key).Result()
-
-	if err == redis.Nil {
-		fmt.Printf("not found %v\n", key)
-		return false, Chair{}
-	} else if err != nil {
-		fmt.Printf("redis error %v\n", err)
-		return false, Chair{}
-	}
-
-	chair := Chair{}
-	err = json.Unmarshal([]byte(chairJson), &chair)
-
-
-	if err != nil {
-		fmt.Printf("marchal erro %vr\n", err)
-		return false, Chair{}
-	}
-
-	fmt.Println("====================")
-	fmt.Println("cache hit!!!!!!!!!!")
-	return true, chair
-}
-
-func SetChairFromRedis(chair Chair) error {
-	key := fmt.Sprintf("chair-%d", chair.ID)
-
-	ctx := context.Background()
-	json, err := json.Marshal(chair)
-	if err != nil {
-		return err
-	}
-
-	err = rdb.Set(ctx, key, string(json), 0).Err()
-
-	return err
-
-}
-
-func RedisDel(key string) error {
-	ctx := context.Background()
-	return rdb.Do(ctx, "del", key).Err()
-}
