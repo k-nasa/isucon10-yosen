@@ -391,6 +391,11 @@ func postChair(c echo.Context) error {
 		kind := rm.NextString()
 		popularity := rm.NextInt()
 		stock := rm.NextInt()
+
+
+		k := fmt.Sprintln("chair-%d", id)
+		RedisDel(k)
+
 		if err := rm.Err(); err != nil {
 			c.Logger().Errorf("failed to read record: %v", err)
 			return c.NoContent(http.StatusBadRequest)
@@ -580,6 +585,10 @@ func buyChair(c echo.Context) error {
 		c.Echo().Logger.Errorf("DB Execution Error: on getting a chair by id : %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
+
+
+	k := fmt.Sprintln("chair-%d", id)
+	RedisDel(k)
 
 	_, err = tx.Exec("UPDATE chair SET stock = stock - 1 WHERE id = ?", id)
 	if err != nil {
@@ -1001,4 +1010,9 @@ func GetChairFromRedis(id int) (bool, Chair) {
 	}
 
 	return true, chair
+}
+
+func RedisDel(key string) {
+	ctx := context.Background()
+	rdb.Do(ctx, "del", key)
 }
