@@ -288,14 +288,14 @@ func main() {
 	if err != nil {
 		e.Logger.Fatalf("DB connection failed : %v", err)
 	}
-	chairDB.SetMaxOpenConns(10)
+	chairDB.SetMaxOpenConns(1000)
 	defer chairDB.Close()
 
 	estateDB, err = mySQLConnectionData.ConnectEstateDb()
 	if err != nil {
 		e.Logger.Fatalf("DB connection failed : %v", err)
 	}
-	estateDB.SetMaxOpenConns(10)
+	estateDB.SetMaxOpenConns(1000)
 	defer estateDB.Close()
 
 
