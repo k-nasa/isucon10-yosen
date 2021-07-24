@@ -295,6 +295,10 @@ func main() {
 }
 
 func initialize(c echo.Context) error {
+
+	ctx := context.Background()
+	rdb.Do(ctx, "flushdb")
+
 	sqlDir := filepath.Join("..", "mysql", "db")
 	paths := []string{
 		filepath.Join(sqlDir, "0_Schema.sql"),
