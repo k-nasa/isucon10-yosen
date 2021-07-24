@@ -10,4 +10,3 @@ BRANCH=$2
 git push origin $2
 
 ssh $TARGET "sudo -u isucon /home/isucon/isuumo/deploy $BRANCH"
-

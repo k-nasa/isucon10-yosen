@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-redis/redis/v8"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo"
@@ -24,6 +26,7 @@ const Limit = 20
 const NazotteLimit = 50
 
 var db *sqlx.DB
+var rdb *redis.Client
 var mySQLConnectionData *MySQLConnectionEnv
 var chairSearchCondition ChairSearchCondition
 var estateSearchCondition EstateSearchCondition
@@ -279,6 +282,13 @@ func main() {
 	db.SetMaxOpenConns(10)
 	defer db.Close()
 
+	rdb = redis.NewClient(&redis.Options{
+		Addr:     "13.231.179.8:6379",
+		Password: "", // no password set
+		DB:       0,  // use default DB
+	})
+
+
 	// Start server
 	serverPort := fmt.Sprintf(":%v", getEnv("SERVER_PORT", "1323"))
 	e.Logger.Fatal(e.Start(serverPort))
@@ -320,19 +330,23 @@ func getChairDetail(c echo.Context) error {
 		return c.NoContent(http.StatusBadRequest)
 	}
 
-	chair := Chair{}
-	query := `SELECT * FROM chair WHERE id = ?`
-	err = db.Get(&chair, query, id)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			c.Echo().Logger.Infof("requested id's chair not found : %v", id)
+	ok, chair := GetChairFromRedis(id)
+
+
+	if !ok {
+		query := `SELECT * FROM chair WHERE id = ?`
+		err = db.Get(&chair, query, id)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				c.Echo().Logger.Infof("requested id's chair not found : %v", id)
+				return c.NoContent(http.StatusNotFound)
+			}
+			c.Echo().Logger.Errorf("Failed to get the chair from id : %v", err)
+			return c.NoContent(http.StatusInternalServerError)
+		} else if chair.Stock <= 0 {
+			c.Echo().Logger.Infof("requested id's chair is sold out : %v", id)
 			return c.NoContent(http.StatusNotFound)
 		}
-		c.Echo().Logger.Errorf("Failed to get the chair from id : %v", err)
-		return c.NoContent(http.StatusInternalServerError)
-	} else if chair.Stock <= 0 {
-		c.Echo().Logger.Infof("requested id's chair is sold out : %v", id)
-		return c.NoContent(http.StatusNotFound)
 	}
 
 	return c.JSON(http.StatusOK, chair)
@@ -961,4 +975,30 @@ func (cs Coordinates) coordinatesToText() string {
 		points = append(points, fmt.Sprintf("%f %f", c.Latitude, c.Longitude))
 	}
 	return fmt.Sprintf("'POLYGON((%s))'", strings.Join(points, ","))
+}
+
+func GetChairFromRedis(id int) (bool, Chair) {
+	key := fmt.Sprintf("chair-%d", id)
+
+	ctx := context.Background()
+	chairJson, err := rdb.Get(ctx, key).Result()
+
+	if err == redis.Nil {
+		fmt.Printf("not found %v\n", key)
+		return false, Chair{}
+	} else if err != nil {
+		fmt.Printf("redis error %v\n", err)
+		return false, Chair{}
+	}
+
+	chair := Chair{}
+	err = json.Unmarshal([]byte(chairJson), &chair)
+
+
+	if err != nil {
+		fmt.Printf("marchal erro %vr\n", err)
+		return false, Chair{}
+	}
+
+	return true, chair
 }
