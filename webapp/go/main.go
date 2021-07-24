@@ -1018,6 +1018,8 @@ func GetChairFromRedis(id int) (bool, Chair) {
 		return false, Chair{}
 	}
 
+	fmt.Println("====================")
+	fmt.Println("cache hit!!!!!!!!!!")
 	return true, chair
 }
 
