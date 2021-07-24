@@ -334,23 +334,17 @@ func getChairDetail(c echo.Context) error {
 		return c.NoContent(http.StatusBadRequest)
 	}
 
-	ok, chair := GetChairFromRedis(id)
+	chair := Chair{}
 
-	if !ok {
-		query := `SELECT * FROM chair WHERE id = ?`
-		err = db.Get(&chair, query, id)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				c.Echo().Logger.Infof("requested id's chair not found : %v", id)
-				return c.NoContent(http.StatusNotFound)
-			}
-			c.Echo().Logger.Errorf("Failed to get the chair from id : %v", err)
-			return c.NoContent(http.StatusInternalServerError)
+	query := `SELECT * FROM chair WHERE id = ?`
+	err = db.Get(&chair, query, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.Echo().Logger.Infof("requested id's chair not found : %v", id)
+			return c.NoContent(http.StatusNotFound)
 		}
-
-		err := SetChairFromRedis(chair); if err != nil {
-			c.Echo().Logger.Infof("failed set chair: %v", id)
-		}
+		c.Echo().Logger.Errorf("Failed to get the chair from id : %v", err)
+		return c.NoContent(http.StatusInternalServerError)
 	}
 
 	if chair.Stock <= 0 {
@@ -400,10 +394,6 @@ func postChair(c echo.Context) error {
 		kind := rm.NextString()
 		popularity := rm.NextInt()
 		stock := rm.NextInt()
-
-
-		k := fmt.Sprintln("chair-%d", id)
-		RedisDel(k)
 
 		if err := rm.Err(); err != nil {
 			c.Logger().Errorf("failed to read record: %v", err)
@@ -595,13 +585,6 @@ func buyChair(c echo.Context) error {
 		return c.NoContent(http.StatusInternalServerError)
 	}
 
-
-	k := fmt.Sprintln("chair-%d", id)
-	err = RedisDel(k)
-	if err != nil {
-		c.Echo().Logger.Errorf("failed del  %v, err: %v", k, err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
 
 	_, err = tx.Exec("UPDATE chair SET stock = stock - 1 WHERE id = ?", id)
 	if err != nil {
