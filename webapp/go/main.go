@@ -336,7 +336,6 @@ func getChairDetail(c echo.Context) error {
 
 	ok, chair := GetChairFromRedis(id)
 
-
 	if !ok {
 		query := `SELECT * FROM chair WHERE id = ?`
 		err = db.Get(&chair, query, id)
@@ -347,10 +346,16 @@ func getChairDetail(c echo.Context) error {
 			}
 			c.Echo().Logger.Errorf("Failed to get the chair from id : %v", err)
 			return c.NoContent(http.StatusInternalServerError)
-		} else if chair.Stock <= 0 {
-			c.Echo().Logger.Infof("requested id's chair is sold out : %v", id)
-			return c.NoContent(http.StatusNotFound)
 		}
+
+		err := SetChairFromRedis(chair); if err != nil {
+			c.Echo().Logger.Infof("failed set chair: %v", id)
+		}
+	}
+
+	if chair.Stock <= 0 {
+		c.Echo().Logger.Infof("requested id's chair is sold out : %v", id)
+		return c.NoContent(http.StatusNotFound)
 	}
 
 	return c.JSON(http.StatusOK, chair)
@@ -1014,6 +1019,21 @@ func GetChairFromRedis(id int) (bool, Chair) {
 	}
 
 	return true, chair
+}
+
+func SetChairFromRedis(chair Chair) error {
+	key := fmt.Sprintf("chair-%d", chair.ID)
+
+	ctx := context.Background()
+	json, err := json.Marshal(chair)
+	if err != nil {
+		return err
+	}
+
+	err = rdb.Set(ctx, key, string(json), 0).Err()
+
+	return err
+
 }
 
 func RedisDel(key string) {
