@@ -51,3 +51,5 @@ alter table isuumo.chair add index (depth);
 alter table isuumo.chair add index (height);
 alter table isuumo.chair add index (width);
 alter table isuumo.chair add index (popularity);
+
+alter table isuumo.chair add index (stock, price);
