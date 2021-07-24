@@ -1038,7 +1038,7 @@ func SetChairFromRedis(chair Chair) error {
 
 }
 
-func RedisDel(key string) {
+func RedisDel(key string) error {
 	ctx := context.Background()
-	rdb.Do(ctx, "del", key)
+	return rdb.Do(ctx, "del", key).Err()
 }
