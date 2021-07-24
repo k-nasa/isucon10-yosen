@@ -597,7 +597,11 @@ func buyChair(c echo.Context) error {
 
 
 	k := fmt.Sprintln("chair-%d", id)
-	RedisDel(k)
+	err = RedisDel(k)
+	if err != nil {
+		c.Echo().Logger.Errorf("failed del  %v, err: %v", k, err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
 
 	_, err = tx.Exec("UPDATE chair SET stock = stock - 1 WHERE id = ?", id)
 	if err != nil {
